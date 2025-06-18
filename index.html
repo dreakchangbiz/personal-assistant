@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>個人語音助理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2em; }
+    button { margin: 1em; padding: 1em 2em; font-size: 1.2em; }
+    audio { margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <h1>🎙️ 個人語音助理平台</h1>
+  <button id="recordBtn">開始錄音</button>
+  <button id="uploadBtn" disabled>上傳到 n8n</button>
+  <br />
+  <audio id="audioPlayback" controls></audio>
+
+  <script>
+    let mediaRecorder, audioChunks = [];
+
+    const recordBtn = document.getElementById("recordBtn");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const audioPlayback = document.getElementById("audioPlayback");
+
+    let isRecording = false;
+
+    recordBtn.addEventListener("click", async () => {
+      if (!isRecording) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          audioPlayback.src = audioUrl;
+          uploadBtn.dataset.blobUrl = audioUrl;
+          uploadBtn.dataset.blob = audioBlob;
+          uploadBtn.disabled = false;
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.textContent = "停止錄音";
+      } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.textContent = "開始錄音";
+      }
+    });
+
+    uploadBtn.addEventListener("click", async () => {
+      uploadBtn.disabled = true;
+      const blob = audioChunks.length
+        ? new Blob(audioChunks, { type: "audio/webm" })
+        : null;
+
+      if (!blob) return alert("沒有錄音資料");
+
+      const formData = new FormData();
+      formData.append("file", blob, "audio.webm");
+
+      const response = await fetch("https://dreakchang-n8n-free.hf.space/webhook/b7d36fbd-fdb7-400d-b598-8f1249cc9676", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        alert("上傳成功，n8n 正在處理");
+      } else {
+        alert("上傳失敗！");
+      }
+    });
+  </script>
+</body>
+</html>
